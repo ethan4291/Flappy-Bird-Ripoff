@@ -1,5 +1,6 @@
 // Minimal Flappy Bird-like game ported from the Python/pygame project.
 (() => {
+  try {
   const SCREEN_W = 400, SCREEN_H = 600;
   const GRAVITY = 0.45;
   const FLAP_STRENGTH = -8;
@@ -50,10 +51,20 @@
     fitCanvasToContainer();
   }
   window.addEventListener('resize', handleResize);
+
+  // surface uncaught errors to page status for easier debugging on hosted site
+  window.addEventListener('error', (ev) => {
+    try {
+      if (status) status.textContent = 'Error: ' + (ev && ev.message ? ev.message : String(ev));
+    } catch (e) { console.error(e); }
+  });
   const status = document.getElementById('status');
 
-  // asset paths relative to site root
-  const ASSET_ROOT = 'data';
+  // compute asset root relative to the location of this script so assets resolve when hosted
+  const scriptEl = document.currentScript || document.querySelector('script[src$="game.js"]');
+  const scriptDir = (scriptEl && scriptEl.src) ? new URL('.', scriptEl.src).href : new URL('.', window.location.href).href;
+  // assume data/ is a sibling of the js/ directory (../data/). This matches the project layout.
+  const ASSET_ROOT = new URL('../data/', scriptDir).href.replace(/\/$/, '');
   const IMG_ROOT = ASSET_ROOT + '/img';
   const SOUND_ROOT = ASSET_ROOT + '/sound';
 
@@ -65,7 +76,11 @@
       const img = new Image();
       img.onload = () => { images[key] = img; resolve(img); };
       img.onerror = () => { images[key] = null; resolve(null); };
-      img.src = path;
+      try {
+        img.src = new URL(path, window.location.href).href;
+      } catch (e) {
+        img.src = path;
+      }
     });
   }
 
@@ -82,7 +97,9 @@
   // simple sound loader (optional)
   function tryLoadSound(key, path) {
     try {
-      const a = new Audio(path);
+  let src = path;
+  try { src = new URL(path, window.location.href).href; } catch (e) {}
+  const a = new Audio(src);
       sounds[key] = a;
     } catch (e) {
       sounds[key] = null;
@@ -295,8 +312,13 @@
   if (typeof handleResize === 'function') handleResize();
   requestAnimationFrame(gameLoop);
   }).catch((e) => {
-    status.textContent = 'Failed to load assets.';
-    console.error(e);
+    status.textContent = 'Failed to load assets: ' + (e && e.message ? e.message : String(e));
+    console.error('Asset load error', e);
   });
+
+  } catch (e) {
+    console.error('Fatal error in game initialization', e);
+    try { if (status) status.textContent = 'Fatal: ' + (e && e.message ? e.message : String(e)); } catch (er){}
+  }
 
 })();
