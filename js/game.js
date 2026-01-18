@@ -144,6 +144,7 @@
     constructor(x) {
       this.x = x;
       this.passed = false;
+      // Keep pipe width equal to the source image width when available to avoid horizontal distortion
       this.width = images.pipe ? images.pipe.width : 60;
       const min_top = 20;
       const max_top = SCREEN_H - PIPE_GAP - (images.base ? images.base.height : 80) - 20;
@@ -152,19 +153,41 @@
     update() { this.x -= PIPE_SPEED; }
     draw(ctx) {
       if (images.pipe) {
+        const img = images.pipe;
         const top_h = this.top_height;
         const bottom_y = this.top_height + PIPE_GAP;
         const bottom_h = SCREEN_H - bottom_y - (images.base ? images.base.height : 80);
+
+        // Heuristic cap height: assume the pipe image has a cap at the top taking ~20% of height
+        // If this assumption doesn't match the artwork, we can tweak capRatio.
+        const capH = Math.max(8, Math.min(48, Math.floor(img.height * 0.20)));
+        const bodySrcY = Math.min(img.height - 2, capH + 1);
+
+        // Draw top pipe (flipped vertically). We draw the cap and then a stretched body slice to fill remaining height.
         if (top_h > 0) {
-          // scale pipe for top
+          const bodyH = Math.max(0, top_h - capH);
           ctx.save();
+          // Flip vertically to draw the top pipe
           ctx.translate(this.x, 0);
-          ctx.scale(this.width / images.pipe.width, top_h / images.pipe.height);
-          ctx.drawImage(images.pipe, 0, 0);
+          ctx.scale(1, -1);
+          // Draw cap (from top of source image)
+          ctx.drawImage(img, 0, 0, img.width, capH, 0, -top_h, this.width, capH);
+          // Draw body by stretching a 1px-high slice from the source image; this preserves texture without stretching the cap
+          if (bodyH > 0) {
+            ctx.drawImage(img, 0, bodySrcY, img.width, 1, 0, -top_h + capH, this.width, bodyH);
+          }
           ctx.restore();
         }
+
+        // Draw bottom pipe
         if (bottom_h > 0) {
-          ctx.drawImage(images.pipe, this.x, bottom_y, this.width, bottom_h);
+          const bodyH = Math.max(0, bottom_h - capH);
+          // Draw cap at the top of bottom pipe
+          ctx.drawImage(img, 0, 0, img.width, capH, this.x, bottom_y, this.width, capH);
+          // Draw body by stretching a 1px-high slice to fill remaining height
+          if (bodyH > 0) {
+            ctx.drawImage(img, 0, bodySrcY, img.width, 1, this.x, bottom_y + capH, this.width, bodyH);
+          }
         }
       } else {
         ctx.fillStyle = '#228b22';

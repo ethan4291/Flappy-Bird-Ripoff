@@ -125,17 +125,46 @@ class Pipe:
 
     def draw(self, surf):
         if pipe_img:
-            # top pipe (flipped)
+            img = pipe_img
+            img_w, img_h = img.get_size()
             top_h = self.top_height
             bottom_y = self.top_height + PIPE_GAP
             bottom_h = base_y - bottom_y
+
+            # Heuristic cap height: preserve the pipe cap instead of scaling the whole image
+            cap_h = max(8, min(48, int(img_h * 0.20)))
+            # ensure we don't read past the image
+            body_src_y = min(img_h - 1, cap_h)
+
+            # Draw top pipe (inverted). Draw a stretched body slice and the flipped cap.
             if top_h > 0:
-                top_surf = pygame.transform.scale(pipe_img, (self.width, top_h))
-                top_surf = pygame.transform.flip(top_surf, False, True)
-                surf.blit(top_surf, (self.x, 0))
+                cap_draw_h = min(cap_h, top_h)
+                body_h = top_h - cap_draw_h
+                # draw body (use a 1px tall slice from the source and scale it)
+                if body_h > 0:
+                    body_slice = img.subsurface((0, body_src_y, img_w, 1))
+                    body_surf = pygame.transform.scale(body_slice, (self.width, body_h))
+                    body_surf = pygame.transform.flip(body_surf, False, True)
+                    surf.blit(body_surf, (self.x, 0))
+                # draw cap (flip vertically so it points into the gap)
+                cap_slice = img.subsurface((0, 0, img_w, cap_h))
+                cap_surf = pygame.transform.scale(cap_slice, (self.width, cap_draw_h))
+                cap_surf = pygame.transform.flip(cap_surf, False, True)
+                surf.blit(cap_surf, (self.x, top_h - cap_draw_h))
+
+            # Draw bottom pipe. Draw cap then stretched body beneath it.
             if bottom_h > 0:
-                bot_surf = pygame.transform.scale(pipe_img, (self.width, bottom_h))
-                surf.blit(bot_surf, (self.x, bottom_y))
+                cap_draw_h = min(cap_h, bottom_h)
+                body_h = bottom_h - cap_draw_h
+                # draw cap at the top of bottom pipe
+                cap_slice = img.subsurface((0, 0, img_w, cap_h))
+                cap_surf = pygame.transform.scale(cap_slice, (self.width, cap_draw_h))
+                surf.blit(cap_surf, (self.x, bottom_y))
+                # draw body below cap
+                if body_h > 0:
+                    body_slice = img.subsurface((0, body_src_y, img_w, 1))
+                    body_surf = pygame.transform.scale(body_slice, (self.width, body_h))
+                    surf.blit(body_surf, (self.x, bottom_y + cap_draw_h))
         else:
             top_rect = pygame.Rect(self.x, 0, self.width, self.top_height)
             bottom_rect = pygame.Rect(self.x, self.top_height + PIPE_GAP, self.width, SCREEN_H - (self.top_height + PIPE_GAP) - base_height)
