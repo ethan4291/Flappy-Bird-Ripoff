@@ -9,6 +9,47 @@
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const canvasWrap = document.getElementById('canvas-wrap');
+  // internal logical size (used throughout the game for coordinates)
+  const INTERNAL_W = SCREEN_W;
+  const INTERNAL_H = SCREEN_H;
+
+  // set the canvas internal pixel size accounting for devicePixelRatio
+  function setCanvasInternalSize() {
+    const dpr = window.devicePixelRatio || 1;
+    // keep logical size fixed
+    canvas.width = INTERNAL_W * dpr;
+    canvas.height = INTERNAL_H * dpr;
+    canvas.style.width = INTERNAL_W + 'px';
+    canvas.style.height = INTERNAL_H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // scale canvas visually to fit its container while maintaining aspect ratio
+  function fitCanvasToContainer() {
+    const containerWidth = Math.min(canvasWrap.clientWidth, window.innerWidth - 32);
+    // allow canvas to shrink to fit viewport height on small phones
+    const maxHeight = Math.max(200, window.innerHeight - 160); // leave room for chrome/controls
+    const aspect = INTERNAL_W / INTERNAL_H;
+    let targetWidth = containerWidth;
+    let targetHeight = Math.round(targetWidth / aspect);
+    if (targetHeight > maxHeight) {
+      targetHeight = maxHeight;
+      targetWidth = Math.round(targetHeight * aspect);
+    }
+    // apply CSS size (keeps drawing coordinate system unchanged)
+    canvas.style.width = targetWidth + 'px';
+    canvas.style.height = targetHeight + 'px';
+    // center the canvas-wrap horizontally
+    canvasWrap.style.justifyContent = 'center';
+  }
+
+  // call once to set internal resolution and fit
+  function handleResize() {
+    setCanvasInternalSize();
+    fitCanvasToContainer();
+  }
+  window.addEventListener('resize', handleResize);
   const status = document.getElementById('status');
 
   // asset paths relative to site root
@@ -226,8 +267,10 @@
   // start
   loadAssets().then(() => {
     reset();
-    status.textContent = '';
-    requestAnimationFrame(gameLoop);
+  status.textContent = '';
+  // size canvas for current device and viewport
+  if (typeof handleResize === 'function') handleResize();
+  requestAnimationFrame(gameLoop);
   }).catch((e) => {
     status.textContent = 'Failed to load assets.';
     console.error(e);
